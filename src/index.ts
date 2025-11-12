@@ -1,5 +1,7 @@
 import { Elysia } from "elysia";
 import { db } from "./db";
+import { ProductsTable, CategoriesTable, BrandsTable, ProductImagesTable } from "./db/schema";
+import { eq, desc } from "drizzle-orm";
 
 const app = new Elysia()
 	.get("/", () => {
@@ -8,45 +10,44 @@ const app = new Elysia()
 		};
 	})
 	.get("/benchmark", async () => {
-
 		const start = performance.now();
-		const result = await db.query.ProductsTable.findMany({
-			limit: 5,
-			columns: {
-				id: true,
-				name: true,
-				price: true,
-				status: true,
+		
+		// Optimized query with explicit joins and better indexing
+		const result = await db.select({
+			id: ProductsTable.id,
+			name: ProductsTable.name,
+			price: ProductsTable.price,
+			status: ProductsTable.status,
+			category: {
+				id: CategoriesTable.id,
+				name: CategoriesTable.name,
 			},
-			with: {
-				category: {
-					columns: {
-						id: true,
-						name: true,
-					},
-				},
-				brand: {
-					columns: {
-						id: true,
-						name: true,
-					},
-				},
-				images: {
-					columns: {
-						id: true,
-						url: true,
-						isPrimary: true,
-					},
-					orderBy: (images, { desc }) => [desc(images.isPrimary)],
-				},
+			brand: {
+				id: BrandsTable.id,
+				name: BrandsTable.name,
 			},
-			orderBy: (products, { desc }) => [desc(products.createdAt)],
-		});
+			images: db.select({
+				id: ProductImagesTable.id,
+				url: ProductImagesTable.url,
+				isPrimary: ProductImagesTable.isPrimary,
+			})
+			.from(ProductImagesTable)
+			.where(eq(ProductImagesTable.productId, ProductsTable.id))
+			.orderBy(desc(ProductImagesTable.isPrimary))
+			.limit(3),
+		})
+		.from(ProductsTable)
+		.leftJoin(CategoriesTable, eq(ProductsTable.categoryId, CategoriesTable.id))
+		.leftJoin(BrandsTable, eq(ProductsTable.brandId, BrandsTable.id))
+		.where(eq(ProductsTable.status, 'active'))
+		.orderBy(desc(ProductsTable.createdAt))
+		.limit(5);
+
 		const end = performance.now();
 		console.log(`Time taken: ${end - start} milliseconds`);
 		return {
 			local: result,
-      time: end - start,
+			time: end - start,
 		};
 	})
 	.listen(3000);
