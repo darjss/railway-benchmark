@@ -12,11 +12,35 @@ const app = new Elysia()
 		const start = performance.now();
 		const result = await db.query.ProductsTable.findMany({
 			limit: 5,
-			with: {
-				category: true,
-				brand: true,
-				images: true,
+			columns: {
+				id: true,
+				name: true,
+				price: true,
+				status: true,
 			},
+			with: {
+				category: {
+					columns: {
+						id: true,
+						name: true,
+					},
+				},
+				brand: {
+					columns: {
+						id: true,
+						name: true,
+					},
+				},
+				images: {
+					columns: {
+						id: true,
+						url: true,
+						isPrimary: true,
+					},
+					orderBy: (images, { desc }) => [desc(images.isPrimary)],
+				},
+			},
+			orderBy: (products, { desc }) => [desc(products.createdAt)],
 		});
 		const end = performance.now();
 		console.log(`Time taken: ${end - start} milliseconds`);
